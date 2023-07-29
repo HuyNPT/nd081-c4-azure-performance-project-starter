@@ -20,18 +20,18 @@ from opencensus.ext.flask.flask_middleware import FlaskMiddleware
 
 # Logging
 logger = logging.getLogger(__name__)
-logger.addHandler(AzureLogHandler(connection_string='InstrumentationKey=5b88f866-ac68-4d70-b567-a16954f9353f'))
-logger.addHandler(AzureEventHandler(connection_string='InstrumentationKey=5b88f866-ac68-4d70-b567-a16954f9353f'))
+logger.addHandler(AzureLogHandler(connection_string='InstrumentationKey=75b36801-bb3d-44fa-aa62-8fa210b1178b'))
+logger.addHandler(AzureEventHandler(connection_string='InstrumentationKey=75b36801-bb3d-44fa-aa62-8fa210b1178b'))
 
 # Metrics
 exporter = metrics_exporter.new_metrics_exporter(
   enable_standard_metrics=True,
-  connection_string='InstrumentationKey=5b88f866-ac68-4d70-b567-a16954f9353f')
+  connection_string='InstrumentationKey=75b36801-bb3d-44fa-aa62-8fa210b1178b')
 
 # Tracing
 tracer = Tracer(
     exporter=AzureExporter(
-        connection_string='InstrumentationKey=5b88f866-ac68-4d70-b567-a16954f9353f'),
+        connection_string='InstrumentationKey=75b36801-bb3d-44fa-aa62-8fa210b1178b'),
     sampler=ProbabilitySampler(1.0),
 )
 
@@ -40,7 +40,7 @@ app = Flask(__name__)
 # Requests
 middleware = FlaskMiddleware(
     app,
-    exporter=AzureExporter(connection_string="InstrumentationKey=5b88f866-ac68-4d70-b567-a16954f9353f"),
+    exporter=AzureExporter(connection_string="InstrumentationKey=75b36801-bb3d-44fa-aa62-8fa210b1178b"),
     sampler=ProbabilitySampler(rate=1.0),
 )
 # Load configurations from environment or config file
@@ -61,8 +61,22 @@ if ("TITLE" in os.environ and os.environ['TITLE']):
 else:
     title = app.config['TITLE']
 
-# Redis Connection
-r = redis.Redis()
+# Redis Connection to a local server running on the same machine where the current FLask app is running. 
+# r = redis.Redis()
+# Redis configurations
+redis_server = os.environ['REDIS']
+
+# Redis Connection to another container
+try:
+   if "REDIS_PWD" in os.environ:
+      r = redis.StrictRedis(host=redis_server,
+                        port=6379,
+                        password=os.environ['REDIS_PWD'])
+   else:
+      r = redis.Redis(redis_server)
+   r.ping()
+except redis.ConnectionError:
+   exit('Failed to connect to Redis, terminating.')
 
 # Change title to host name to demo NLB
 if app.config['SHOWHOST'] == "true":
@@ -79,9 +93,9 @@ def index():
 
         # Get current values
         vote1 = r.get(button1).decode('utf-8')
-        tracer.span(name="Total {} Voted: {}".format(button1, vote1))
+        tracer.span(name="Total {} Votes: {}".format(button1, vote1))
         vote2 = r.get(button2).decode('utf-8')
-        tracer.span(name="Total {} Voted: {}".format(button2, vote2))
+        tracer.span(name="Total {} Votes: {}".format(button2, vote2))
 
         # Return index with values
         return render_template("index.html", value1=int(vote1), value2=int(vote2), button1=button1, button2=button2, title=title)
@@ -95,11 +109,11 @@ def index():
             r.set(button2,0)
             vote1 = r.get(button1).decode('utf-8')
             properties = {'custom_dimensions': {'Cats Vote': vote1}}
-            logger.warning("{} voted".format(button1), extra=properties)
+            logger.warning("{} votew".format(button1), extra=properties)
 
             vote2 = r.get(button2).decode('utf-8')
             properties = {'custom_dimensions': {'Dogs Vote': vote2}}
-            logger.warning("{} voted".format(button2), extra=properties)
+            logger.warning("{} votes".format(button2), extra=properties)
 
             return render_template("index.html", value1=int(vote1), value2=int(vote2), button1=button1, button2=button2, title=title)
 
